@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hearth and Ledger · The Rivera household budget</title>
+<meta name="description" content="A household budget site for the Rivera family: the month at a glance, the budget, every transaction, savings goals, bills and insights. Works offline.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-mark" aria-hidden="true">H</span>
+    <span class="brand-name">Hearth and Ledger</span>
+  </div>
+  <p class="month" id="month-label">November 2026</p>
+</header>
+<div class="layout">
+  <nav class="sidenav" id="nav" aria-label="Sections"></nav>
+  <main class="page" id="page"></main>
+</div>
+<footer class="footer">
+  <p>Hearth and Ledger keeps the Rivera household budget. All figures are the family's own records, stored in this browser and nowhere else. <button type="button" class="link-button" data-action="reset-all">Start over with the sample month</button></p>
+  <p><a href="#/dashboard">Dashboard</a> · <a href="#/budget">Budget</a> · <a href="#/transactions">Transactions</a> · <a href="#/goals">Goals</a> · <a href="#/bills">Bills</a> · <a href="#/insights">Insights</a></p>
+</footer>
+<script type="module" src="main.js"></script>
+</body>
+</html>
