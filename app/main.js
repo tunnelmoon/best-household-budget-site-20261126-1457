@@ -1,139 +1,140 @@
-// Hearth and Ledger: the wiring. One job: hold the household's state,
-// pick a page from the address, and make its controls work.
+// main.js: hash router plus every control's behaviour. The site is one
+// page with six sections; the hash picks which render function runs.
 
-import { CATEGORIES, MONTHS, freshState, loadState, saveState, clearState } from './data.js';
-import { VIEWS, NAV } from './views.js';
+import { loadState, saveState, resetState, roundCents } from './data.js';
+import {
+  renderDashboard, renderBudget, renderTransactions,
+  renderGoals, renderBills, renderInsights,
+} from './views.js';
 
-const page = document.getElementById('page');
-const nav = document.getElementById('nav');
-const saved = loadState();
-let state = saved || freshState();
-let txFilter = 'all';
+const view = document.getElementById('view');
+const navLinks = [...document.querySelectorAll('.nav-link')];
+let state = loadState();
+let txFilter = 'All';
 
-function currentRoute() {
-  const hash = window.location.hash || '#/dashboard';
-  const name = hash.replace(/^#\//, '').split('/')[0];
-  return VIEWS[name] ? name : 'dashboard';
-}
+const ROUTES = {
+  '': () => renderDashboard(state),
+  dashboard: () => renderDashboard(state),
+  budget: () => renderBudget(state),
+  transactions: () => renderTransactions(state, txFilter),
+  goals: () => renderGoals(state),
+  bills: () => renderBills(state),
+  insights: () => renderInsights(state),
+};
 
-function renderNav(route) {
-  nav.innerHTML = NAV.map((item) =>
-    '<a href="' + item.href + '"' + (item.id === route ? ' aria-current="page"' : '') + '>' + item.label + '</a>'
-  ).join('');
-}
-
-function render() {
-  const route = currentRoute();
-  renderNav(route);
-  page.innerHTML = VIEWS[route](state, txFilter);
+function route() {
+  const name = location.hash.replace(/^#\/?/, '').split('/')[0] || 'dashboard';
+  const render = ROUTES[name] || ROUTES.dashboard;
+  view.innerHTML = render();
+  navLinks.forEach((link) => {
+    const target = link.getAttribute('href').replace(/^#\/?/, '') || 'dashboard';
+    const active = target === name || (name === '' && target === 'dashboard');
+    link.classList.toggle('active', active);
+    if (active) link.setAttribute('aria-current', 'page');
+    else link.removeAttribute('aria-current');
+  });
   window.scrollTo(0, 0);
 }
 
-function persist() {
+function rerender() {
   saveState(state);
-  render();
+  route();
 }
 
-nav.addEventListener('click', (event) => {
-  const link = event.target.closest('a');
-  if (!link) return;
-  window.location.hash = link.getAttribute('href');
+// One delegated listener handles every button, chip, checkbox and form
+// the views render, so controls keep working after each re-render.
+document.addEventListener('click', (event) => {
+  const target = event.target;
+  const chip = target.closest('[data-filter]');
+  if (chip) {
+    txFilter = chip.dataset.filter;
+    route();
+    return;
+  }
+  const del = target.closest('[data-delete]');
+  if (del) {
+    state.transactions = state.transactions.filter((t) => t.id !== Number(del.dataset.delete));
+    rerender();
+    return;
+  }
+  const add50 = target.closest('[data-add-goal]');
+  if (add50) {
+    const goal = state.goals.find((g) => g.id === Number(add50.dataset.addGoal));
+    if (goal) goal.saved = roundCents(goal.saved + 50);
+    rerender();
+    return;
+  }
+  const add100 = target.closest('[data-add-goal-100]');
+  if (add100) {
+    const goal = state.goals.find((g) => g.id === Number(add100.dataset.addGoal100));
+    if (goal) goal.saved = roundCents(goal.saved + 100);
+    rerender();
+    return;
+  }
+  if (target.closest('#save-budget')) {
+    const inputs = [...document.querySelectorAll('.plan-input')];
+    for (const input of inputs) {
+      const amount = Number(input.value);
+      if (Number.isFinite(amount) && amount >= 0) state.budgets[input.dataset.category] = roundCents(amount);
+    }
+    saveState(state);
+    const note = document.getElementById('save-note');
+    if (note) note.textContent = 'Budget saved.';
+    route();
+    const after = document.getElementById('save-note');
+    if (after) after.textContent = 'Budget saved.';
+    return;
+  }
+  if (target.closest('#reset-data')) {
+    state = resetState();
+    txFilter = 'All';
+    route();
+  }
 });
 
-page.addEventListener('click', (event) => {
-  const button = event.target.closest('[data-action]');
-  if (!button) return;
-  const action = button.getAttribute('data-action');
-  if (action === 'reset-budgets') {
-    state.budgets = Object.fromEntries(CATEGORIES.map((c) => [c.id, c.budget]));
-    persist();
-  }
-  if (action === 'delete-tx') {
-    const date = button.getAttribute('data-date');
-    const merchant = button.getAttribute('data-merchant');
-    const amount = Number(button.getAttribute('data-amount'));
-    const index = state.transactions.findIndex((t) => t.date === date && t.merchant === merchant && Number(t.amount) === amount);
-    if (index >= 0) {
-      state.transactions.splice(index, 1);
-      persist();
-    }
-  }
-  if (action === 'goal-add') {
-    const goal = state.goals.find((g) => g.id === button.getAttribute('data-goal'));
-    if (goal) {
-      goal.saved = Math.min(goal.target, goal.saved + 50);
-      persist();
-    }
-  }
-  if (action === 'toggle-bill') {
-    const bill = state.bills.find((b) => b.id === button.getAttribute('data-bill'));
-    if (bill) {
-      bill.paid = !bill.paid;
-      persist();
-    }
+document.addEventListener('change', (event) => {
+  const billBox = event.target.closest('[data-bill]');
+  if (billBox) {
+    const bill = state.bills.find((b) => b.id === Number(billBox.dataset.bill));
+    if (bill) bill.paid = billBox.checked;
+    rerender();
   }
 });
 
-page.addEventListener('change', (event) => {
-  if (event.target.id === 'tx-filter') {
-    txFilter = event.target.value;
-    render();
-  }
-});
-
-page.addEventListener('submit', (event) => {
+document.addEventListener('submit', (event) => {
   event.preventDefault();
   const form = event.target;
-  if (form.id === 'budget-form') {
-    form.querySelectorAll('.budget-input').forEach((input) => {
-      const value = Number(input.value);
-      if (Number.isFinite(value) && value >= 0) state.budgets[input.getAttribute('data-category')] = value;
-    });
-    saveState(state);
-    render();
-    const note = document.getElementById('budget-note');
-    if (note) note.textContent = 'Budgets saved.';
-  }
-  if (form.id === 'add-tx') {
+  if (form.id === 'add-form') {
     const data = new FormData(form);
-    const amount = Number(data.get('amount'));
+    const amount = roundCents(Number(data.get('amount')));
     if (!Number.isFinite(amount) || amount <= 0) return;
+    const nextId = state.transactions.reduce((max, t) => Math.max(max, t.id), 0) + 1;
     state.transactions.push({
+      id: nextId,
       date: String(data.get('date') || '2026-11-30'),
-      merchant: String(data.get('merchant') || '').trim(),
-      category: String(data.get('category') || 'misc'),
+      name: String(data.get('name') || '').trim() || 'Untitled',
+      category: String(data.get('category')),
       amount,
-      note: String(data.get('note') || '').trim(),
     });
-    persist();
+    rerender();
+    return;
   }
-  if (form.id === 'add-goal') {
+  if (form.id === 'goal-form') {
     const data = new FormData(form);
-    const target = Number(data.get('target'));
-    const savedAmount = Number(data.get('saved'));
-    const name = String(data.get('name') || '').trim();
-    if (!name || !Number.isFinite(target) || target <= 0) return;
+    const targetAmount = roundCents(Number(data.get('target')));
+    const saved = roundCents(Number(data.get('saved') || 0));
+    if (!Number.isFinite(targetAmount) || targetAmount <= 0) return;
+    const nextId = state.goals.reduce((max, g) => Math.max(max, g.id), 0) + 1;
     state.goals.push({
-      id: 'goal-' + Date.now(),
-      name,
-      target,
-      saved: Number.isFinite(savedAmount) && savedAmount > 0 ? Math.min(savedAmount, target) : 0,
-      note: 'Added by the family.',
+      id: nextId,
+      name: String(data.get('name') || '').trim() || 'New goal',
+      saved: Number.isFinite(saved) && saved >= 0 ? saved : 0,
+      target: targetAmount,
+      note: 'Added by the Rivera household.',
     });
-    persist();
+    rerender();
   }
 });
 
-document.addEventListener('click', (event) => {
-  const button = event.target.closest('[data-action="reset-all"]');
-  if (!button) return;
-  clearState();
-  state = freshState();
-  txFilter = 'all';
-  render();
-});
-
-window.addEventListener('hashchange', render);
-
-document.getElementById('month-label').textContent = MONTHS[0].label;
-render();
+window.addEventListener('hashchange', route);
+route();

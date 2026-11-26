@@ -1,43 +1,35 @@
-// Hearth and Ledger: small formatting helpers. One job: turn numbers
-// and dates into the words the pages show.
+// format.js: money and date formatting, one place for every figure's shape.
 
-export function money(amount) {
-  const value = Number(amount) || 0;
-  return '$' + value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+export function money(n) {
+  return '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-export function moneyShort(amount) {
-  const value = Number(amount) || 0;
-  if (value >= 1000) return '$' + (value / 1000).toFixed(1).replace(/\.0$/, '') + 'k';
-  return '$' + Math.round(value);
+export function moneyWhole(n) {
+  return '$' + Math.round(Number(n)).toLocaleString('en-US');
 }
 
-export function percent(part, whole) {
-  if (!whole) return 0;
-  return Math.round((part / whole) * 100);
+export function signedMoney(n) {
+  return (n < 0 ? '-$' : '+$') + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+export function percent(n) {
+  return Math.round(n * 100) + '%';
 }
 
 export function shortDate(iso) {
-  const parts = String(iso).split('-');
-  if (parts.length !== 3) return String(iso);
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  const month = months[Number(parts[1]) - 1] || '';
-  return month + ' ' + Number(parts[2]);
+  const d = new Date(iso + 'T12:00:00');
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-export function fullDate(iso) {
-  const parts = String(iso).split('-');
-  if (parts.length !== 3) return String(iso);
-  const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-  const month = months[Number(parts[1]) - 1] || '';
-  return month + ' ' + Number(parts[2]) + ', ' + parts[0];
+export function longDate(iso) {
+  const d = new Date(iso + 'T12:00:00');
+  return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
-export function escapeHtml(text) {
-  return String(text)
+export function escapeHtml(s) {
+  return String(s)
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
+    .replace(/"/g, '&quot;');
 }
